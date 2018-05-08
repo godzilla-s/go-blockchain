@@ -2,9 +2,11 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/gob"
 	"math/big"
 )
 
@@ -14,7 +16,24 @@ func Sign(hash []byte, prk *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(r.Bytes(), s.Bytes()...), nil
+
+	sig := Signature{r, s}
+	return sig.encoderSig()
+}
+
+// encode
+func (s *Signature) encoderSig() ([]byte, error) {
+	buffer := new(bytes.Buffer)
+	encoder := gob.NewEncoder(buffer)
+	err := encoder.Encode(s)
+	return buffer.Bytes(), err
+}
+
+// decode
+func (s *Signature) decoderSig(data []byte) error {
+	reader := bytes.NewReader(data)
+	decoder := gob.NewDecoder(reader)
+	return decoder.Decode(s)
 }
 
 // 验证签名
@@ -51,10 +70,10 @@ func recoverSign(sig []byte) *Signature {
 }
 
 // r: 签名中的r
-func recoverKeyFromSign(curve elliptic.Curve, r, s *big.Int) {
+func recoverKeyFromSign(curve elliptic.Curve, sig *Signature) {
 	// iter / 2
 	rx := new(big.Int).Mul(curve.Params().N, new(big.Int).SetInt64(int64(0)))
-	rx.Add(rx, r)
+	rx.Add(rx, sig.R)
 	if rx.Cmp(curve.Params().P) != -1 {
 		return
 	}
