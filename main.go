@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	_ "go-blockchain/crypto"
+	_ "go-blockchain/event"
 	_ "go-blockchain/pow"
 	"go-blockchain/run"
 )

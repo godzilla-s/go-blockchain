@@ -10,7 +10,7 @@ func init() {
 	run.Register("crypto", Run)
 }
 
-func Run() {
+func testSign() {
 	prk, err := GenerateKey()
 	if err != nil {
 		fmt.Println("generate key error:", err)
@@ -37,4 +37,9 @@ func Run() {
 	} else {
 		fmt.Println("verify fail")
 	}
+}
+
+func Run() {
+	// testSign()
+	testHash()
 }
