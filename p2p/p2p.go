@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"container/list"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"time"
@@ -16,10 +17,21 @@ const (
 	replynodePacket
 )
 
+var (
+	expirationTime = 30 * time.Second
+)
+
+var (
+	errPacketTimeout = errors.New("timeout")
+	errPacketHandle  = errors.New("handle packet error")
+)
+
 type udp struct {
 	conn     conn
 	pending  chan *pending
 	gotreply chan gotreply
+	self     endpoint
+	exit     chan struct{}
 }
 
 type pending struct {
@@ -66,6 +78,7 @@ func newUDP(c conn, cfg Config) *udp {
 		conn:     c,
 		pending:  make(chan *pending, 10),
 		gotreply: make(chan gotreply, 10),
+		exit:     make(chan struct{}),
 	}
 
 	return &t
@@ -118,7 +131,7 @@ func (t *udp) handleRequest(buf []byte, to *net.UDPAddr) error {
 	return err
 }
 
-func (t *udp) send(typ byte, to *net.UDPAddr, pack packet) {
+func (t *udp) sendMessage(typ byte, to *net.UDPAddr, pack packet) {
 	data := encodePacket(typ, pack)
 	t.conn.WriteToUDP(data, to)
 }
@@ -131,11 +144,13 @@ func (t *udp) addPending(typ byte, call func(v interface{}) bool) {
 }
 
 // 处理返回的结果
-func (t *udp) handleReply(pack packet) bool {
+func (t *udp) handleReply(typ byte, pack packet) bool {
 	ch := make(chan bool, 1)
 	select {
-	case t.gotreply <- gotreply{data: pack, matched: ch}:
+	case t.gotreply <- gotreply{typ: typ, data: pack, matched: ch}:
 		return <-ch
+	case <-t.exit:
+		return true
 	}
 }
 
@@ -177,11 +192,29 @@ func (p *pong) handle(t *udp, to *net.UDPAddr) error {
 
 func (p *findnode) handle(t *udp, to *net.UDPAddr) error {
 	// todo
+	if expire(p.Expire) {
+		return errPacketTimeout
+	}
+
+	// 返回reply
+	reply := replynode{
+		Nodes:  []*Node{},
+		Expire: time.Now().Add(expirationTime).Unix(),
+	}
+
+	t.sendMessage(replynodePacket, to, &reply)
 	return nil
 }
 
 func (p *replynode) handle(t *udp, to *net.UDPAddr) error {
-	// todo
+	if expire(p.Expire) {
+		return errPacketTimeout
+	}
+
+	if !t.handleReply(replynodePacket, p) {
+		return errPacketHandle
+	}
+
 	return nil
 }
 
@@ -228,8 +261,23 @@ func (t *udp) findnode(to *net.UDPAddr) []Node {
 	})
 
 	p := findnode{
-		Expire: time.Now().Unix(),
+		Expire: time.Now().Add(expirationTime).Unix(),
 	}
-	t.send(findnodePacket, to, &p)
+	t.sendMessage(findnodePacket, to, &p)
 	return nodes
+}
+
+func (t *udp) ping(to *net.UDPAddr) {
+	t.addPending(pongPacket, func(v interface{}) bool {
+		return true
+	})
+
+	p := ping{
+		Expire: time.Now().Add(expirationTime).Unix(),
+	}
+	t.sendMessage(pingPacket, to, &p)
+}
+
+func expire(ts int64) bool {
+	return true
 }
