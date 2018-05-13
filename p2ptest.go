@@ -1,10 +1,5 @@
-## P2P 
+package main
 
-TODO... 
-
-
-测试用例: 
-```go
 import (
 	"go-blockchain/p2p"
 	"os"
@@ -20,4 +15,3 @@ func main() {
 	server.Start()
 	server.Stop()
 }
-``` 
