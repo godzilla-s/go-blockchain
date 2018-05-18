@@ -14,13 +14,17 @@ type Config struct {
 }
 
 var bootnode = [...]string{
-	"node://abe245d34da3434341@192.168.1.100:60101",
+	"node://abe245d34da3434341@192.168.1.100:50101",
+	//"node://afe12bc24413400a21@192.168.1.198:50102",
 }
 
 func DefaultNodes() []*Node {
 	var nodes []*Node
 	for _, s := range bootnode {
-		nodes = append(nodes, MustParseNode(s))
+		// test
+		n := MustParseNode(s)
+		n.IP = net.ParseIP(GetLocalAddr())
+		nodes = append(nodes, n)
 	}
 
 	return nodes
@@ -52,7 +56,7 @@ func NewConfig(args []string) Config {
 
 	defnodes := DefaultNodes()
 	if defmode {
-		host = defnodes[0].IP.String()
+		host = GetLocalAddr() // defnodes[0].IP.String()
 		port = defnodes[0].UDP
 		id = defnodes[0].ID.String()
 	}

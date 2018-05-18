@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -17,9 +18,8 @@ type Table struct {
 
 func newTable(t *udp, cfg Config) *Table {
 	tab := &Table{
-		db:  newNodeDB(),
-		udp: t,
-		//self:	   NewNode(t.),
+		db:        newNodeDB(),
+		udp:       t,
 		exit:      make(chan struct{}),
 		bondslots: make(chan struct{}, 5), // 最多处理5个并发事件
 	}
@@ -57,6 +57,7 @@ func (tab *Table) explore() {
 		asked[n.ID] = false
 	}
 
+	fmt.Println("len nodes:", len(nodes))
 	for i := 0; i < len(nodes); i++ {
 		n := nodes[i]
 		//log.Println(n.ID, tab.self.ID)
@@ -69,6 +70,7 @@ func (tab *Table) explore() {
 		// fail := tab.db.findFails(n.ID)
 
 		go func() {
+			fmt.Println("==>", n)
 			rn := tab.udp.findnode(n.Addr())
 			tab.bondAll(rn)
 		}()
@@ -108,7 +110,8 @@ func (tab *Table) hasBond(n *Node) bool {
 
 // 获取附近的节点
 func (tab *Table) closest() []*Node {
-	return []*Node{}
+	nodes := tab.db.query()
+	return nodes
 }
 
 func (tab *Table) bondAll(nodes []*Node) {
@@ -128,11 +131,11 @@ func (tab *Table) bond(n *Node) {
 	errc := make(chan error, 1)
 	// check
 	lastping := tab.db.lastPing(n.ID)
-	if lastping > 0 {
+	if lastping > time.Now().Unix()-3*60 {
 		// TODO
 	}
 
-	tab.pingpong(n.Addr(), errc)
+	go tab.pingpong(n.Addr(), errc)
 	if err := <-errc; err == nil {
 		tab.add(n)
 	} else {
@@ -147,9 +150,10 @@ func (tab *Table) pingpong(to *net.UDPAddr, errc chan<- error) {
 		return
 	}
 
-	log.Println("wait for ping")
-	errc <- err
-	//errc <- tab.udp.waitping()
+	log.Println("wait for ping begin")
+	//errc <- err
+	errc <- tab.udp.waitping()
+	log.Println("wait for ping end")
 }
 
 func (tab *Table) add(n *Node) {

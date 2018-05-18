@@ -5,6 +5,7 @@ import (
 	"container/list"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -108,14 +109,18 @@ func (t *udp) taskLoop() {
 			plist.PushBack(p)
 		case r := <-t.gotreply:
 			match := false
+			fmt.Println("reply:", plist.Len(), " type:", r.typ)
 			for pl := plist.Front(); pl != nil; pl = pl.Next() {
 				v := pl.Value.(*pending)
+				fmt.Println(">", r.typ, v.typ)
 				if r.typ == v.typ {
-					//
-					v.callback(r.data)
-					plist.Remove(pl)
-					match = true
+					// 处理回调函数
+					if v.callback(r.data) {
+						v.errch <- nil
+						plist.Remove(pl)
+					}
 				}
+				match = true
 			}
 			r.matched <- match
 		}
@@ -137,7 +142,7 @@ func (t *udp) readLoop() {
 		}
 		log.Println("recv handle <=", from)
 		if err = t.handleRequest(buf[:nbytes], from); err != nil {
-			log.Println("handle request error:", err)
+			log.Println(err)
 			// 处理失败
 		}
 	}
@@ -148,14 +153,13 @@ func (t *udp) handleRequest(buf []byte, to *net.UDPAddr) error {
 	if err != nil {
 		return err
 	}
-	log.Println("fromID", fromID)
+	//log.Println("fromID", fromID)
 	err = pack.handle(t, fromID, to)
 	return err
 }
 
 func (t *udp) sendMessage(typ byte, to *net.UDPAddr, pack packet) {
 	data := encodePacket(t.Id, typ, pack)
-	//log.Println("===== send", to)
 	t.conn.WriteToUDP(data, to)
 }
 
@@ -166,7 +170,7 @@ func (t *udp) addPending(typ byte, call func(v interface{}) bool) <-chan error {
 	case t.pending <- &pending{typ: typ, callback: call, errch: ch}:
 		// todo
 	case <-t.exit:
-		ch <- errors.New("udp exit")
+		ch <- errors.New("udp pending exit")
 	}
 	return ch
 }
@@ -213,29 +217,29 @@ type packet interface {
 // 处理ping数据包
 func (p *ping) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 	if expire(p.Expire) {
-		return errPacketTimeout
+		return Error("ping", errPacketTimeout)
 	}
 
 	reply := pong{Expire: time.Now().Add(expirationTime).Unix()}
 
-	log.Println("handle ping", "to", to)
+	log.Println("handle ping", "from", to)
 	t.sendMessage(pongPacket, to, &reply)
 
-	if !t.handleReply(pongPacket, p) {
-		return errPacketHandle
-	}
+	// if !t.handleReply(pongPacket, p) {
+	// 	return errPacketHandle
+	// }
 	return nil
 }
 
 // 处理pong数据包
 func (p *pong) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 	if expire(p.Expire) {
-		return errPacketTimeout
+		return Error("pong", errPacketTimeout)
 	}
 
-	log.Println("handle pong")
+	log.Println("handle pong", "from", to)
 	if !t.handleReply(pongPacket, p) {
-		return errPacketHandle
+		return Error("pong", errPacketHandle)
 	}
 	return nil
 }
@@ -243,7 +247,7 @@ func (p *pong) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 func (p *findnode) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 	// todo
 	if expire(p.Expire) {
-		return errPacketTimeout
+		return Error("findnode", errPacketTimeout)
 	}
 
 	log.Println("handle findnode <=", "from", to)
@@ -256,19 +260,19 @@ func (p *findnode) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 
 	// 取附近的node
 	reply.Nodes = t.tab.closest()
-	log.Println("find node reply =>", to)
+	//log.Println("find node reply =>", to)
 	t.sendMessage(replynodePacket, to, &reply)
 	return nil
 }
 
 func (p *replynode) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 	if expire(p.Expire) {
-		return errPacketTimeout
+		return Error("replynode", errPacketTimeout)
 	}
 
 	log.Println("handle replynode")
 	if !t.handleReply(replynodePacket, p) {
-		return errPacketHandle
+		return Error("replynode", errPacketHandle)
 	}
 
 	return nil
@@ -318,10 +322,21 @@ func expire(ts int64) bool {
 	return false
 }
 
+func Error(typ string, err error) error {
+	return fmt.Errorf("%s:%v", typ, err)
+}
+
 func (t *udp) findnode(to *net.UDPAddr) []*Node {
 	var nodes []*Node
 	t.addPending(replynodePacket, func(v interface{}) bool {
-		// todo nodes
+		// 处理接收到的node
+		log.Println("处理replynode")
+		rn := v.(*replynode)
+		for _, n := range rn.Nodes {
+			if n.Validate() {
+				nodes = append(nodes, n)
+			}
+		}
 		return true
 	})
 
@@ -335,16 +350,13 @@ func (t *udp) findnode(to *net.UDPAddr) []*Node {
 }
 
 func (t *udp) ping(to *net.UDPAddr) error {
-	t.addPending(pongPacket, func(v interface{}) bool {
-		return true
-	})
+	//t.addPending(pongPacket, func(v interface{}) bool { return true })
 
 	p := ping{
 		Expire: time.Now().Add(expirationTime).Unix(),
 	}
 
 	log.Println("ping to", to)
-	time.Sleep(5 * time.Second)
 	t.sendMessage(pingPacket, to, &p)
 	return nil
 }

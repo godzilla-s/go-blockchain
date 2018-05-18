@@ -36,6 +36,11 @@ func (n *Node) Addr() *net.UDPAddr {
 	return &net.UDPAddr{IP: n.IP, Port: n.UDP}
 }
 
+func (n *Node) Validate() bool {
+	// TODO
+	return true
+}
+
 func ParseNode(rawUrl string) (*Node, error) {
 	if !strings.HasPrefix(rawUrl, "node://") {
 		return nil, errors.New("invalid node: prefix")
@@ -115,6 +120,8 @@ func (id NodeID) IntV() int64 {
 	return 0
 }
 
+//++++++++++++++++++++++++++
+// DB 存储
 type nodeDB struct {
 	mux   sync.Mutex
 	cache map[NodeID]nodeCache
@@ -211,5 +218,9 @@ func (db *nodeDB) updateBondtime(id NodeID, now int64) {
 }
 
 func (db *nodeDB) query() []*Node {
-	return []*Node{}
+	var nodes []*Node
+	for _, v := range db.cache {
+		nodes = append(nodes, v.node)
+	}
+	return nodes
 }
