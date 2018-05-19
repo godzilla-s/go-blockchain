@@ -26,6 +26,7 @@ var (
 var (
 	errPacketTimeout = errors.New("timeout")
 	errPacketHandle  = errors.New("handle packet error")
+	errListTimeout   = errors.New("queue time out")
 )
 
 type udp struct {
@@ -101,11 +102,25 @@ func newUDP(c conn, cfg Config) *udp {
 
 func (t *udp) taskLoop() {
 	var plist = list.New()
+	listClear := func() {
+		for pl := plist.Front(); pl != nil; pl = pl.Next() {
+			if v, ok := pl.Value.(*pending); ok {
+				if v.deadline < time.Now().Unix() {
+					v.errch <- errListTimeout
+					plist.Remove(pl)
+				}
+			} else {
+				plist.Remove(pl)
+			}
+		}
+	}
+
 	for {
 		//
+		listClear()
 		select {
 		case p := <-t.pending:
-			p.deadline = time.Now().Add(1 * time.Minute).Unix() //有效时间
+			p.deadline = time.Now().Add(1 * time.Minute).Unix() //有效时间1分
 			plist.PushBack(p)
 		case r := <-t.gotreply:
 			match := false
@@ -138,6 +153,7 @@ func (t *udp) readLoop() {
 		}
 
 		if err == io.EOF {
+			log.Println("recv eof")
 			continue
 		}
 		log.Println("recv handle <=", from)
@@ -160,7 +176,10 @@ func (t *udp) handleRequest(buf []byte, to *net.UDPAddr) error {
 
 func (t *udp) sendMessage(typ byte, to *net.UDPAddr, pack packet) {
 	data := encodePacket(t.Id, typ, pack)
-	t.conn.WriteToUDP(data, to)
+	_, err := t.conn.WriteToUDP(data, to)
+	if err != nil {
+		log.Println("write to udp error:", err)
+	}
 }
 
 // 添加待处理的事件
@@ -222,9 +241,9 @@ func (p *ping) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 
 	reply := pong{Expire: time.Now().Add(expirationTime).Unix()}
 
-	log.Println("handle ping", "from", to)
+	log.Println("handle ping", "from", to, ";send pong")
 	t.sendMessage(pongPacket, to, &reply)
-
+	log.Println("send ok")
 	// if !t.handleReply(pongPacket, p) {
 	// 	return errPacketHandle
 	// }
@@ -260,7 +279,7 @@ func (p *findnode) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 
 	// 取附近的node
 	reply.Nodes = t.tab.closest()
-	//log.Println("find node reply =>", to)
+	log.Println("返回节点: ", reply.Nodes)
 	t.sendMessage(replynodePacket, to, &reply)
 	return nil
 }
@@ -270,7 +289,7 @@ func (p *replynode) handle(t *udp, fromID NodeID, to *net.UDPAddr) error {
 		return Error("replynode", errPacketTimeout)
 	}
 
-	log.Println("handle replynode")
+	log.Println("handle replynode:", p.Nodes)
 	if !t.handleReply(replynodePacket, p) {
 		return Error("replynode", errPacketHandle)
 	}
@@ -328,10 +347,10 @@ func Error(typ string, err error) error {
 
 func (t *udp) findnode(to *net.UDPAddr) []*Node {
 	var nodes []*Node
-	t.addPending(replynodePacket, func(v interface{}) bool {
+	errc := t.addPending(replynodePacket, func(v interface{}) bool {
 		// 处理接收到的node
-		log.Println("处理replynode")
 		rn := v.(*replynode)
+		log.Println("处理replynode:", rn.Nodes)
 		for _, n := range rn.Nodes {
 			if n.Validate() {
 				nodes = append(nodes, n)
@@ -346,6 +365,12 @@ func (t *udp) findnode(to *net.UDPAddr) []*Node {
 
 	log.Println("=> find node:", to)
 	t.sendMessage(findnodePacket, to, &p)
+	err := <-errc
+	if err != nil {
+		log.Println("err:", err)
+		return nil
+	}
+	log.Println("find nodes:", nodes)
 	return nodes
 }
 
@@ -356,9 +381,13 @@ func (t *udp) ping(to *net.UDPAddr) error {
 		Expire: time.Now().Add(expirationTime).Unix(),
 	}
 
+	errc := t.addPending(pongPacket, func(v interface{}) bool { return true })
+
 	log.Println("ping to", to)
 	t.sendMessage(pingPacket, to, &p)
-	return nil
+
+	err := <-errc
+	return err
 }
 
 func (t *udp) waitping() error {

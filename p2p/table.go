@@ -70,8 +70,8 @@ func (tab *Table) explore() {
 		// fail := tab.db.findFails(n.ID)
 
 		go func() {
-			fmt.Println("==>", n)
 			rn := tab.udp.findnode(n.Addr())
+			log.Println("rn:==>", rn)
 			tab.bondAll(rn)
 		}()
 	}
@@ -97,7 +97,7 @@ func (tab *Table) bondNode(n *Node) {
 	}
 
 	//tab.bondslots <- struct{}{}
-	tab.bond(n)
+	tab.db.saveNode(n)
 }
 
 func (tab *Table) hasBond(n *Node) bool {
@@ -119,7 +119,7 @@ func (tab *Table) bondAll(nodes []*Node) {
 		if n.ID == tab.self.ID {
 			continue
 		}
-		//tab.bond(n)
+		tab.bond(n)
 	}
 }
 
@@ -147,13 +147,9 @@ func (tab *Table) bond(n *Node) {
 func (tab *Table) pingpong(to *net.UDPAddr, errc chan<- error) {
 	err := tab.udp.ping(to)
 	if err != nil {
-		return
+		log.Println("ping error:", err)
 	}
-
-	log.Println("wait for ping begin")
-	//errc <- err
-	errc <- tab.udp.waitping()
-	log.Println("wait for ping end")
+	errc <- err
 }
 
 func (tab *Table) add(n *Node) {
