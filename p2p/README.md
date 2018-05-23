@@ -20,4 +20,13 @@ func main() {
 	server.Start()
 	server.Stop()
 }
+```   
+
+运行:  
+```
+启动中心节点 
+go run main.go -d
+启动其他节点
+go run main.go -port xxx -id xxxx   
 ``` 
+
