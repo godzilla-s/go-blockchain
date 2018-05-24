@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -11,7 +12,9 @@ type Table struct {
 	db        *nodeDB
 	self      *Node
 	udp       *udp
+	mux       sync.Mutex
 	nursery   []*Node
+	stable    []*Node
 	bondslots chan struct{}
 	exit      chan struct{}
 }
@@ -37,13 +40,17 @@ func newTable(t *udp, cfg Config) *Table {
 
 // 探寻
 func (tab *Table) loop() {
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
 	tab.explore()
 	for {
+		tab.bondAll(tab.nursery)
 		select {
 		case <-tab.exit:
 			return
-		case <-time.After(30 * time.Second):
+		case <-timer.C:
 			tab.explore()
+			timer.Reset(10 * time.Second)
 		}
 	}
 }
@@ -86,7 +93,12 @@ func (tab *Table) getSeedNodes() []*Node {
 		return nodes
 	}
 
-	nodes = append(nodes, tab.nursery...)
+	rest := 5 - len(nodes)
+	if len(tab.nursery) < rest {
+		nodes = append(nodes, tab.nursery...)
+	} else {
+		nodes = append(nodes, tab.nursery[:rest]...)
+	}
 
 	return nodes
 }
@@ -97,7 +109,15 @@ func (tab *Table) bondNode(n *Node) {
 	}
 
 	//tab.bondslots <- struct{}{}
-	tab.db.saveNode(n)
+	// tab.db.saveNode(n)
+	tab.addNersury(n)
+}
+
+// 添加到托管中
+func (tab *Table) addNersury(n *Node) {
+	tab.mux.Lock()
+	defer tab.mux.Unlock()
+	tab.nursery = append(tab.nursery, n)
 }
 
 func (tab *Table) hasBond(n *Node) bool {
@@ -114,6 +134,7 @@ func (tab *Table) closest() []*Node {
 	return nodes
 }
 
+// 对发现的几点进行ping/pong校验
 func (tab *Table) bondAll(nodes []*Node) {
 	for _, n := range nodes {
 		if n.ID == tab.self.ID {
@@ -133,6 +154,7 @@ func (tab *Table) bond(n *Node) {
 	lastping := tab.db.lastPing(n.ID)
 	if lastping > time.Now().Unix()-3*60 {
 		// TODO
+		return
 	}
 
 	go tab.pingpong(n.Addr(), errc)
