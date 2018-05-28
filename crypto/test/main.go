@@ -12,13 +12,18 @@ func testSign() {
 		return
 	}
 
-	pukid := crypto.PubkeyID(prk)
+	fmt.Printf("prk:\n\tD:%d\n\tX:%d\n\tY:%d\n", prk.D, prk.X, prk.Y)
+	params := prk.Curve.Params()
+	fmt.Printf("params:\n\tP:%d\n\tN:%d\n\tB:%d\n\tGx:%d\n\tGy:%d\n", params.P, params.N, params.B, params.Gx, params.Gy)
 
+	pukid := crypto.PubkeyID(prk)
 	puk, err := pukid.PublibKey()
 	if err != nil {
 		fmt.Println("public key id error:", err)
 		return
 	}
+
+	fmt.Printf("puk:\n\tX:%d\n\tY:%d\n", puk.X, puk.Y)
 
 	data := []byte("1243254215456")
 	sig, err := crypto.Sign(data, prk)
