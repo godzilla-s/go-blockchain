@@ -19,6 +19,7 @@ type PoW struct {
 	target *big.Int
 }
 
+// NewPoW pow
 func NewPoW(b *Block) *PoW {
 	target := big.NewInt(1)
 	target.Lsh(target, uint(256-targetBit))
@@ -47,6 +48,7 @@ func (pow *PoW) prepareData(nonce int) []byte {
 	return data
 }
 
+// Calc 计算PoW
 func (pow *PoW) Calc() (int, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
@@ -69,7 +71,7 @@ func (pow *PoW) Calc() (int, []byte) {
 	return nonce, hash[:]
 }
 
-// 验证工作量证明
+// Validate 验证工作量证明
 func (pow *PoW) Validate() bool {
 	var hashInt big.Int
 

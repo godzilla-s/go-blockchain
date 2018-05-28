@@ -1,23 +1,18 @@
-package crypto
+package main
 
 import (
 	"fmt"
-	"go-blockchain/run"
+	"go-blockchain/crypto"
 )
 
-// for test
-func init() {
-	run.Register("crypto", Run)
-}
-
 func testSign() {
-	prk, err := GenerateKey()
+	prk, err := crypto.GenerateKey()
 	if err != nil {
 		fmt.Println("generate key error:", err)
 		return
 	}
 
-	pukid := PubkeyID(prk)
+	pukid := crypto.PubkeyID(prk)
 
 	puk, err := pukid.PublibKey()
 	if err != nil {
@@ -26,20 +21,20 @@ func testSign() {
 	}
 
 	data := []byte("1243254215456")
-	sig, err := Sign(data, prk)
+	sig, err := crypto.Sign(data, prk)
 	if err != nil {
 		fmt.Println("fail to sign:", err)
 		return
 	}
 
-	if VerifySign(puk, data, sig) {
+	if crypto.VerifySign(puk, data, sig) {
 		fmt.Println("verify ok")
 	} else {
 		fmt.Println("verify fail")
 	}
 }
 
-func Run() {
-	// testSign()
-	testHash()
+func main() {
+	testSign()
+	//testHash()
 }

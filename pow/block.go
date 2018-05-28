@@ -48,3 +48,7 @@ func (bc *BlockChain) AddBlock(data string) {
 func NewBlockChain() *BlockChain {
 	return &BlockChain{[]*Block{NewGenesisBlock()}}
 }
+
+func (bc *BlockChain) Blocks() []*Block {
+	return bc.blocks
+}
