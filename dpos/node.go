@@ -1,21 +1,9 @@
 package dpos
 
-import "net"
-
-type RoleType uint8
-
-const (
-	Follow RoleType = iota + 1
-	Candidate
-	Leader
-)
-
-type endpoing struct {
-	IP   net.IP
-	Port int
+type Producer struct {
+	ID string
 }
 
-type Node struct {
-	role RoleType
-	ID   string
+type GlobalProducers struct {
+	producers []Producer
 }
