@@ -48,8 +48,9 @@ func VerifySign(puk *ecdsa.PublicKey, hash []byte, sig []byte) bool {
 }
 
 // 根据签名导出公钥
-func SignToPubkey(sig, hash []byte) {
+func SignToPubkey(sig, hash []byte) (*ecdsa.PublicKey, error) {
 	// TODO
+	return nil, nil
 }
 
 type Signature struct {

@@ -39,7 +39,29 @@ func testSign() {
 	}
 }
 
+func testbtcSign() {
+	prk, err := crypto.BtcGenerateKey()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("pubkey:", prk.PublicKey)
+	data := []byte("1235436256724572")
+	sig, err := crypto.BtcSign(data, prk)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(len(sig), sig)
+	puk, err := crypto.BtcSignToPubkey(data, sig)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("after:", *puk)
+}
 func main() {
-	testSign()
+	//testSign()
 	//testHash()
+	testbtcSign()
 }
