@@ -1,0 +1,17 @@
+########################
+#
+########################
+dpos:
+  produceblockSlot: 1 # 每个数据产出的时间
+  produceBlocksByTurn: 3 # 每轮产生的区块数
+nodes:
+  - idx: 1
+    id: aef12346b7
+    addr: 192.168.1.100:5001
+  - idx: 2
+    id: 34df1f2340
+    addr: 192.168.1.100:5002
+  - idx: 3
+    id: ba7ec9013d
+    addr: 192.168.1.100:5003
+    
