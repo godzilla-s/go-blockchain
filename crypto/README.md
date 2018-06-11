@@ -32,6 +32,11 @@ type PrivateKey struct {
 ``` 
 对于计算公式： G * k = K (G,K是公钥(即X，Y)，k是私钥)  
 
+### 第三方加密包 
+```
+// 基于比特币的机密算法
+github.com/btcsuite/btcd/btcec
+```
 
 ### 测试运行  
 测试使用椭圆签名算法： 
