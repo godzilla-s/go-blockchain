@@ -9,7 +9,7 @@ ECDSA： 椭圆曲线签名算法。
 源码部分解析: 
 ```
 type CurveParams struct {
-    P       *big.Int // 决定有限域的p的值（必须是素数）
+    P       *big.Int // 决定有限域的p的值（必须是素数），即`mod`的数
     N       *big.Int // 基点的阶（必须是素数）
     B       *big.Int // 曲线公式的常量（B!=2）
     Gx, Gy  *big.Int // 基点的坐标(即椭圆曲线上的一点，也称为基点)
@@ -32,14 +32,14 @@ type PrivateKey struct {
 ``` 
 对于计算公式： G * k = K (G,K是公钥(即X，Y)，k是私钥)  
 
-### 第三方加密包 
+### 第三方包 
+引用比特币go版本的加密包 
 ```
-// 基于比特币的机密算法
-github.com/btcsuite/btcd/btcec
+go get github.com/btcsuite/btcd/btcec
 ```
 
 ### 测试运行  
 测试使用椭圆签名算法： 
 ```
 go run test/main.go
-```
+``` 

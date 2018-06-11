@@ -14,18 +14,18 @@ type PublicID [pukLen]byte
 
 // 生成私钥
 func GenerateKey() (*ecdsa.PrivateKey, error) {
-	return ecdsa.GenerateKey(curveFunc(), rand.Reader)
+	return ecdsa.GenerateKey(curve(), rand.Reader)
 }
 
 // 使用P-256的曲线
-func curveFunc() elliptic.Curve {
+func curve() elliptic.Curve {
 	return elliptic.P256()
 }
 
 // 导出公钥ID
 func PubkeyID(prk *ecdsa.PrivateKey) PublicID {
 	puk := prk.PublicKey
-	buf := elliptic.Marshal(curveFunc(), puk.X, puk.Y)
+	buf := elliptic.Marshal(curve(), puk.X, puk.Y)
 	var id PublicID
 	copy(id[:], buf[1:])
 	return id
@@ -38,7 +38,7 @@ func (id PublicID) PublibKey() (*ecdsa.PublicKey, error) {
 	}
 
 	half := pukLen / 2
-	puk := &ecdsa.PublicKey{Curve: curveFunc(), X: new(big.Int), Y: new(big.Int)}
+	puk := &ecdsa.PublicKey{Curve: curve(), X: new(big.Int), Y: new(big.Int)}
 	puk.X.SetBytes(id[:half])
 	puk.Y.SetBytes(id[half:])
 	if !puk.Curve.IsOnCurve(puk.X, puk.Y) {
