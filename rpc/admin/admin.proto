@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package admin
+
+message NodeInfo {
+    string enode = 1;
+    string id = 2;
+
+    meesage LocalAddr {
+        string addr 
+        int32 port 
+    }
+}
+
+service Admin {
+    rpc GetNodeInfo() returns (NodeInfo);
+}
