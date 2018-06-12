@@ -55,14 +55,14 @@ func GetConfig(filename string) Config {
 }
 
 type Node struct {
-	ID       string
-	self     *net.TCPAddr
-	config   Config
-	isLeader bool
-	order    []string
-	pool     *connPool
-	broad    event
-	exit     chan struct{}
+	ID         string
+	self       *net.TCPAddr
+	config     Config
+	pool       *connPool
+	broad      *event
+	blockChain *BlockChain // 区块链
+	producer   *producer   // 区块生产者
+	exit       chan struct{}
 }
 
 // 消息
@@ -102,12 +102,14 @@ func NewNode(idx int, cfg Config) *Node {
 	}
 
 	node := &Node{
-		ID:     ninfo.ID,
-		self:   hostaddr,
-		config: cfg,
-		exit:   make(chan struct{}),
+		ID:         ninfo.ID,
+		self:       hostaddr,
+		config:     cfg,
+		exit:       make(chan struct{}),
+		blockChain: new(BlockChain),
 	}
 	node.pool = newConnPool()
+	node.producer = newProducer(cfg)
 	return node
 }
 
@@ -142,7 +144,7 @@ func (n *Node) handleAccept(c net.Conn) {
 	buf := make([]byte, 512)
 	defer c.Close()
 
-	rid, err := n.handshake(c)
+	rid, err := n.handShakeCheck(c)
 	if err != nil {
 		log.Println("handshake fail:", err)
 		return
@@ -153,6 +155,8 @@ func (n *Node) handleAccept(c net.Conn) {
 		err := conn.recv(buf)
 		if err == errConnClosed {
 			// handle close
+			log.Println("closed ", c.RemoteAddr())
+			break
 		} else if err != nil {
 			continue
 		}
@@ -169,13 +173,36 @@ func (n *Node) handleMessage(conn *connection, buf []byte) error {
 	switch msg.MsgTyp {
 	case packReqGetID:
 		msg := message{MsgTyp: packRspGetID, ID: n.ID}
-		//conn.send(msg.encodeMsg())
+		log.Println("msg:", msg)
 		conn.read.Write(msg.encodeMsg())
 	case packBlockData:
 		// 区块处理
-
+		block := msg.Data.(*Block)
+		n.blockChain.add(*block)
 	}
 	return nil
+}
+
+// 握手确认
+func (n *Node) handShakeCheck(c net.Conn) (string, error) {
+	buf := make([]byte, 256)
+	nbyte, err := c.Read(buf)
+	if err != nil {
+		return "", err
+	}
+
+	reqMsg, err := decodeMsg(buf[:nbyte])
+	if err != nil {
+		return "", err
+	}
+
+	if reqMsg.MsgTyp != packReqGetID {
+		return "", errors.New("invalid message id")
+	}
+
+	rspMsg := message{MsgTyp: packRspGetID, ID: n.ID}
+	c.Write(rspMsg.encodeMsg())
+	return reqMsg.ID, nil
 }
 
 // 简单的握手
@@ -185,7 +212,7 @@ func (n *Node) handshake(c net.Conn) (string, error) {
 
 	buf := make([]byte, 256)
 	nbyte, err := c.Read(buf)
-	if err != nil && err != io.EOF {
+	if err != nil {
 		return "", err
 	}
 
@@ -193,6 +220,7 @@ func (n *Node) handshake(c net.Conn) (string, error) {
 	if err != nil {
 		return "", nil
 	}
+	log.Println("msgId", rsp.MsgTyp, " id", rsp.ID)
 	if rsp.MsgTyp != packRspGetID {
 		return "", errors.New("invalid response id")
 	}
@@ -215,7 +243,7 @@ func (n *Node) connect(ninfo nodeInfo) {
 	for {
 		c, err = net.DialTimeout("tcp", ninfo.Addr, 30*time.Second)
 		if err != nil {
-			log.Println("dial error:", err)
+			//log.Println("dial error:", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -240,6 +268,18 @@ func (n *Node) connect(ninfo nodeInfo) {
 		case msg := <-conn.broadcast:
 			data := msg.encodeMsg()
 			conn.send(data)
+		}
+	}
+}
+
+func (n *Node) loop() {
+	for {
+		select {
+		case <-n.exit:
+			return
+		case b := <-n.producer.blockCh:
+			msg := message{MsgTyp: packBlockData, ID: n.ID, Data: b}
+			n.broad.Send(msg)
 		}
 	}
 }
@@ -309,17 +349,15 @@ func (c connection) send(data []byte) error {
 
 func (c connection) recv(data []byte) error {
 	if c.readable {
-		for {
-			n, err := c.read.Read(data)
-			if err != nil && err != io.EOF {
-				return err
-			}
-			if err == io.EOF {
-				return errConnClosed
-			}
-			data = data[:n]
-			return nil
+		n, err := c.read.Read(data)
+		if err != nil && err != io.EOF {
+			return err
 		}
+		if err == io.EOF {
+			return errConnClosed
+		}
+		data = data[:n]
+		return nil
 	}
 	return errors.New("conn is unreadale")
 }
