@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"go-blockchain/event"
 	"io"
 	"io/ioutil"
 	"log"
@@ -59,7 +60,7 @@ type Node struct {
 	self       *net.TCPAddr
 	config     Config
 	pool       *connPool
-	broad      *event
+	broad      *event.Event
 	blockChain *BlockChain // 区块链
 	producer   *producer   // 区块生产者
 	exit       chan struct{}
@@ -69,7 +70,7 @@ type Node struct {
 type message struct {
 	MsgTyp byte
 	ID     string
-	Data   interface{}
+	Data   []byte
 }
 
 func (msg *message) encodeMsg() []byte {
@@ -108,8 +109,9 @@ func NewNode(idx int, cfg Config) *Node {
 		exit:       make(chan struct{}),
 		blockChain: new(BlockChain),
 	}
+	node.broad = new(event.Event)
 	node.pool = newConnPool()
-	node.producer = newProducer(cfg)
+	node.producer = node.newProducer()
 	return node
 }
 
@@ -117,7 +119,8 @@ func NewNode(idx int, cfg Config) *Node {
 func (n *Node) Start() {
 	log.Println("node start:", n.self.String())
 	go n.initConnPool()
-	n.startListen()
+	go n.startListen()
+	n.loop()
 }
 
 // 启动监听
@@ -177,8 +180,16 @@ func (n *Node) handleMessage(conn *connection, buf []byte) error {
 		conn.read.Write(msg.encodeMsg())
 	case packBlockData:
 		// 区块处理
-		block := msg.Data.(*Block)
-		n.blockChain.add(*block)
+		//log.Println("msg:", reflect.TypeOf(msg.Data))
+		var block Block
+		err := block.Decode(msg.Data)
+		if err != nil {
+			log.Println("block decode:", err)
+			return err
+		}
+		n.blockChain.add(block)
+	case packHeartBeat:
+		// 处理心跳
 	}
 	return nil
 }
@@ -260,7 +271,7 @@ func (n *Node) connect(ninfo nodeInfo) {
 	}
 	conn := n.pool.add(rid, 2, c)
 	// 订阅事件
-	n.broad.Subscribe(conn.broadcast)
+	n.broad.Subcribe(conn.broadcast)
 	for {
 		select {
 		case <-n.exit:
@@ -273,13 +284,17 @@ func (n *Node) connect(ninfo nodeInfo) {
 }
 
 func (n *Node) loop() {
+	go n.producer.produce()
 	for {
 		select {
 		case <-n.exit:
+			n.producer.exit <- struct{}{}
 			return
-		case b := <-n.producer.blockCh:
-			msg := message{MsgTyp: packBlockData, ID: n.ID, Data: b}
+		case b := <-n.producer.blockCh: // 通过TCP广播数据
+			log.Println("produce block and broadcast")
+			msg := message{MsgTyp: packBlockData, ID: n.ID, Data: b.Encode()}
 			n.broad.Send(msg)
+			n.blockChain.pending(*b)
 		}
 	}
 }
