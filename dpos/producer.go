@@ -37,27 +37,38 @@ func (n *Node) newProducer() *producer {
 // 产生区块
 func (p *producer) produce() {
 	timer := time.NewTimer(1 * time.Second)
-	defer timer.Stop()
+	defer func() {
+		close(p.blockCh)
+		close(p.exit)
+		timer.Stop()
+	}()
 
-	getIdx := func() int {
-		return int(time.Now().Unix() % int64(p.orderNum))
-	}
 	for {
 		select {
 		case <-p.exit:
 			return
 		case <-timer.C:
 			// 判断顺序轮换生产区块
-			idx := getIdx()
-			// log.Println("generate index:", idx, " self:", p.self)
-			if p.self == p.order[idx] {
-				log.Println("genrate block")
-				block := p.bchain.createBlock(nil)
-				if block != nil {
-					p.blockCh <- block
-				}
+			block := p.generateBlock()
+			if block != nil {
+				p.blockCh <- block
 			}
 			timer.Reset(1 * time.Second)
 		}
 	}
+}
+
+func (p *producer) generateBlock() *Block {
+	idx := p.getOrderSlot()
+	if p.self != p.order[idx] {
+		return nil
+	}
+	log.Println("produce new block")
+	return p.bchain.createBlock(nil)
+}
+
+// 获取顺序
+func (p *producer) getOrderSlot() int {
+	now := time.Now().Unix()
+	return int(now) % p.orderNum
 }
