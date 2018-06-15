@@ -292,6 +292,7 @@ func (n *Node) loop() {
 			return
 		case b := <-n.producer.blockCh: // 通过TCP广播数据
 			log.Println("produce block and broadcast")
+			b.SignBlock() // 签名
 			msg := message{MsgTyp: packBlockData, ID: n.ID, Data: b.Encode()}
 			n.broad.Send(msg)
 			n.blockChain.pending(*b)

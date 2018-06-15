@@ -18,26 +18,26 @@ func ToHash(v interface{}) (Hash, error) {
 	if err != nil {
 		return EmptyHash, err
 	}
-	return toHash(buffer.Bytes())
+	return CalcHash(buffer.Bytes()), nil
 }
 
-// 计算hash
-func toHash(data []byte) (Hash, error) {
+// CalcHash 计算hash
+func CalcHash(data []byte) (h Hash) {
 	d := sha256.New()
 	_, err := d.Write(data)
 	if err != nil {
-		return EmptyHash, err
+		panic(err)
 	}
-	h := d.Sum(nil)
-	var hash Hash
-	copy(hash[:], h[:])
-	return hash, nil
+	hash := d.Sum(nil)
+	copy(h[:], hash[:])
+	return
 }
 
 func (h Hash) String() string {
 	return fmt.Sprintf("%x", h[:])
 }
 
+// Empty 为空
 func (h Hash) Empty() bool {
 	if bytes.Equal(h[:], EmptyHash[:]) {
 		return true
@@ -45,21 +45,7 @@ func (h Hash) Empty() bool {
 	return false
 }
 
-func testHash() {
-	hash, _ := toHash([]byte("1243252465"))
-	fmt.Println(hash)
-
-	type Data struct {
-		Id   int
-		Buf  string
-		self []byte
-	}
-	var d = Data{
-		Id:   100,
-		Buf:  "hello world",
-		self: []byte("123456"),
-	}
-
-	h, _ := ToHash(&d)
-	fmt.Println(h)
+// Equal 比较相等
+func (h Hash) Equal(c Hash) bool {
+	return bytes.Equal(h[:], c[:])
 }
