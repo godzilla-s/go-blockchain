@@ -62,7 +62,7 @@ func (t *TCPConn) loopAccept() {
 func (t *TCPConn) procConnect(c *net.TCPConn) {
 	defer c.Close()
 	// 握手确认
-	_, err := t.ackHandshake(c)
+	id, err := t.ackHandshake(c)
 	if err != nil {
 		log.Println("ackHandshake err:", err)
 		return
@@ -78,7 +78,7 @@ func (t *TCPConn) procConnect(c *net.TCPConn) {
 		if err == io.EOF {
 			// 断开连接
 			log.Println("connect closed:", c.RemoteAddr())
-			t.closeEvent.Send(t.ID)
+			t.closeEvent.Send(id)
 			return
 		}
 		log.Println("read:", buf[:n])
@@ -93,6 +93,7 @@ func (t *TCPConn) ackHandshake(c *net.TCPConn) (string, error) {
 		return "", err
 	}
 
+	//log.Println("data=>", buf[:n])
 	var msg peer.Message
 	err = msg.Decode(buf[:n])
 	if err != nil {
@@ -104,12 +105,11 @@ func (t *TCPConn) ackHandshake(c *net.TCPConn) (string, error) {
 	}
 
 	id := msg.ID
-	data := make([]byte, 128)
-	var msg2 peer.Message
-	msg2.MsgType = peer.PackAckHandshake
-	msg2.ID = t.ID
-	msg2.Data = nil
-	err = msg2.Decode(data)
+	//data := make([]byte, 128)
+	msg.MsgType = peer.PackAckHandshake
+	msg.ID = t.ID
+	msg.Data = nil
+	data := msg.Encode()
 	if err != nil {
 		return "", err
 	}
@@ -212,9 +212,4 @@ Fin:
 // SendMsg 发送数据
 func (t *TCPConn) SendMsg(msg peer.Message) {
 	t.broadcast.Send(msg)
-}
-
-func (t *TCPConn) addConnectPool(id string) {
-	connect := connection{}
-	t.connpool[id] = &connect
 }

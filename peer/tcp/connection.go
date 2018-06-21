@@ -1,19 +1,33 @@
 package tcp
 
 import (
+	"go-blockchain/event"
 	"go-blockchain/peer"
 	"log"
 	"net"
 )
 
 type connection struct {
-	id       string
-	conn     *net.TCPConn
-	readable bool
-	writable bool
-	message  chan peer.Message
-	exit     chan struct{}
-	closed   chan string
+	id         string
+	conn       *net.TCPConn
+	readable   bool
+	writable   bool
+	message    chan peer.Message
+	messageSub event.Subcription
+	exit       chan struct{}
+	closed     chan string
+}
+
+func newConnection(t *TCPConn, id string, conn *net.TCPConn) *connection {
+	c := new(connection)
+	c.id = id
+	c.conn = conn
+	c.message = make(chan peer.Message, 10)
+	c.messageSub = t.broadcast.Subcribe(c.message)
+	c.exit = make(chan struct{})
+	c.closed = make(chan string)
+
+	return c
 }
 
 func (c *connection) loop() {
@@ -35,6 +49,7 @@ Loop:
 	close(c.message)
 	close(c.exit)
 	c.conn.Close()
+	c.messageSub.Unsubcribe()
 	log.Println("close send connection")
 }
 
@@ -44,7 +59,6 @@ func (c *connection) write(msg peer.Message) error {
 	//r, w := io.Pipe()
 	if c.writable {
 		data := msg.Encode()
-		//fmt.Println("==>", data)
 		c.conn.Write(data)
 	}
 	return errNotWritable

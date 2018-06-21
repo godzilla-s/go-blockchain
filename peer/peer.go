@@ -12,10 +12,16 @@ type Connect interface {
 	Close()
 }
 
-func NewPeer() *Peer {
+func NewPeer(cfg *Config) *Peer {
 	return nil
 }
 
 func (p *Peer) Send(msg Message) {
 	p.conn.SendMsg(msg)
+}
+
+func (p *Peer) Add() {
+}
+
+func (p *Peer) Close() {
 }
