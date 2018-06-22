@@ -1,27 +1,40 @@
 package peer
 
+import "go-blockchain/peer/tcp"
+
 // https://github.com/y13i/j2y 转化
 
 type Peer struct {
-	ID   string
-	conn Connect
+	ID  string
+	net NetWorking
 }
 
-type Connect interface {
-	SendMsg(msg Message)
+type NetWorking interface {
+	SendMsg(msg tcp.Message)
+	AddPeer(addr string)
+	DelPeer(id string)
 	Close()
 }
 
-func NewPeer(cfg *Config) *Peer {
-	return nil
+// NewPeer
+func NewPeer(id, addr string) *Peer {
+	conn := tcp.NewTCPConn(id, addr)
+	p := new(Peer)
+	p.net = conn
+	return p
 }
 
-func (p *Peer) Send(msg Message) {
-	p.conn.SendMsg(msg)
+// Send 发送消息
+func (p *Peer) Send(msg tcp.Message) {
+	p.net.SendMsg(msg)
 }
 
-func (p *Peer) Add() {
+// Add 添加节点
+func (p *Peer) Add(addr string) {
+	p.net.AddPeer(addr)
 }
 
+// Close 关闭节点
 func (p *Peer) Close() {
+	p.net.Close()
 }

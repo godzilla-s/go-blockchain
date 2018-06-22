@@ -1,4 +1,4 @@
-package peer
+package tcp
 
 import (
 	"bytes"

@@ -1,4 +1,4 @@
-package peer
+package putils
 
 import (
 	crand "crypto/rand"
@@ -6,27 +6,10 @@ import (
 	"errors"
 	"fmt"
 	mrand "math/rand"
-	"net"
 	"regexp"
 	"strings"
 	"time"
 )
-
-// GetLocalIP 获取本地IP地址
-func GetLocalIP() net.IP {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		panic(err)
-	}
-	for _, addr := range addrs {
-		if ip, ok := addr.(*net.IPNet); ok {
-			if ip.IP.To4() != nil {
-				return ip.IP
-			}
-		}
-	}
-	return nil
-}
 
 // seeded indicates if math/rand has been seeded
 var seeded bool = false
