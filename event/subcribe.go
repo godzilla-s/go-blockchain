@@ -12,15 +12,16 @@ type Event struct {
 	mux       sync.Mutex
 	removeSub chan interface{} // 移除订阅
 	sendLock  chan struct{}
-	inbox     []reflect.SelectCase // 被订阅的channel
-	sendCase  []reflect.SelectCase // 待发送数据的channel
-	etype     reflect.Type         // 发送数据类型
+	inbox     caseList     // 被订阅的channel
+	sendCase  caseList     // 待发送数据的channel
+	etype     reflect.Type // 发送数据类型
 }
 
 func (e *Event) init() {
 	e.removeSub = make(chan interface{})
 	e.sendLock = make(chan struct{}, 1)
 	e.sendLock <- struct{}{}
+	e.sendCase = caseList{{Chan: reflect.ValueOf(e.removeSub), Dir: reflect.SelectRecv}}
 }
 
 // 订阅事件
@@ -36,7 +37,6 @@ func (e *Event) Subcribe(ch interface{}) Subcription {
 
 	e.mux.Lock()
 	defer e.mux.Unlock()
-
 	// check channel的数据类型
 	if !e.typeCheck(chTyp.Elem()) {
 		panic(errors.New("type check fail"))
@@ -58,7 +58,7 @@ func (e *Event) typeCheck(rTyp reflect.Type) bool {
 }
 
 // 发送数据
-func (e *Event) Send(val interface{}) {
+func (e *Event) Send(val interface{}) (nsent int) {
 	e.once.Do(e.init)
 	<-e.sendLock
 
@@ -79,11 +79,32 @@ func (e *Event) Send(val interface{}) {
 		e.sendCase[i].Send = rval
 	}
 
-	sendcase := e.sendCase
-	for i := 0; i < len(sendcase); i++ {
-		// 发送
-		if sendcase[i].Chan.TrySend(rval) {
-			// TODO
+	cases := e.sendCase
+	for {
+		for i := 1; i < len(cases); i++ {
+			// 发送
+			if cases[i].Chan.TrySend(rval) {
+				// TODO
+				nsent++
+				cases = cases.deactivate(i)
+				i--
+			}
+		}
+
+		if len(cases) == 1 {
+			break
+		}
+
+		chosen, recv, _ := reflect.Select(cases)
+		if chosen == 0 {
+			idx := e.sendCase.find(recv.Interface())
+			e.sendCase = e.sendCase.delete(idx)
+			if idx >= 0 && idx < len(cases) {
+				cases = e.sendCase[:len(cases)-1]
+			}
+		} else {
+			cases = cases.deactivate(chosen)
+			nsent++
 		}
 	}
 
@@ -93,11 +114,16 @@ func (e *Event) Send(val interface{}) {
 	}
 	// 解锁
 	e.sendLock <- struct{}{}
+	return nsent
 }
 
 func (e *Event) remove(sub *feedSub) {
 	ch := sub.ch.Interface()
 	e.mux.Lock()
+	idx := e.inbox.find(ch)
+	if idx != -1 {
+		e.inbox = e.inbox.delete(idx)
+	}
 	e.mux.Unlock()
 
 	select {
@@ -105,6 +131,7 @@ func (e *Event) remove(sub *feedSub) {
 		//
 	case <-e.sendLock:
 		//
+		e.sendCase = e.sendCase.delete(e.sendCase.find(ch))
 	}
 }
 
@@ -124,4 +151,28 @@ func (s *feedSub) Unsubcribe() {
 		s.event.remove(s)
 		close(s.err)
 	})
+}
+
+type caseList []reflect.SelectCase
+
+func (cl caseList) find(ch interface{}) int {
+	for i, cas := range cl {
+		if cas.Chan.Interface() == ch {
+			return i
+		}
+	}
+	return -1
+}
+
+func (cl caseList) delete(idx int) caseList {
+	if idx == -1 {
+		return cl
+	}
+	return append(cl[:idx], cl[idx+1:]...)
+}
+
+func (cl caseList) deactivate(idx int) caseList {
+	last := len(cl) - 1
+	cl[idx], cl[last] = cl[last], cl[idx]
+	return cl[:last]
 }
