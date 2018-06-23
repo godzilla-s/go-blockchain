@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -20,6 +21,7 @@ type connection struct {
 	closed     chan struct{}
 	lastactive int64 // 最后活跃时间
 	trytimes   int   // 尝试连接次数
+	wg         *sync.WaitGroup
 }
 
 func newConnection(t *TCPConn, id string) *connection {
@@ -29,6 +31,7 @@ func newConnection(t *TCPConn, id string) *connection {
 	c.messageSub = t.broadcast.Subcribe(c.message)
 	c.closed = make(chan struct{})
 	c.lastactive = time.Now().Unix()
+	c.wg = &t.wg
 	return c
 }
 
@@ -48,6 +51,7 @@ Loop:
 			}
 		}
 	}
+	c.wg.Done()
 	// 退出
 	log.Println("close send connection")
 }

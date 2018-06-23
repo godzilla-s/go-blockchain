@@ -6,10 +6,10 @@ import "go-blockchain/peer/tcp"
 
 type Peer struct {
 	ID  string
-	net NetWorking
+	net netWorking
 }
 
-type NetWorking interface {
+type netWorking interface {
 	SendMsg(msg tcp.Message)
 	AddPeer(addr string)
 	DelPeer(id string)
@@ -18,7 +18,7 @@ type NetWorking interface {
 
 // NewPeer
 func NewPeer(id, addr string) *Peer {
-	conn := tcp.NewTCPConn(id, addr)
+	conn := tcp.NewConn(id, addr)
 	p := new(Peer)
 	p.net = conn
 	return p

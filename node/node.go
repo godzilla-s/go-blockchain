@@ -1,25 +1,24 @@
 package node
 
-import "net"
-
-type endpoint struct {
-	IP   net.IP
-	Port int
-}
+import (
+	"go-blockchain/console"
+	"go-blockchain/peer"
+)
 
 type Node struct {
-	config *Config
-	ID     string
-	self   *net.TCPAddr
-	exit   chan struct{}
+	peer    *peer.Peer
+	console *console.Console
+	exit    chan struct{}
 }
 
 func NewNode(cfg *Config) *Node {
-	var node Node
-
-	return &node
+	node := new(Node)
+	node.peer = peer.NewPeer(cfg.Key, cfg.addr)
+	node.exit = make(chan struct{})
+	node.console = console.New()
+	return node
 }
 
+// 启动节点服务
 func (n *Node) Start() {
-
 }

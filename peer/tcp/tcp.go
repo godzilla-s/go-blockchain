@@ -31,14 +31,14 @@ type TCPConn struct {
 
 	broadcast  event.Event // 广播事件
 	closeEvent event.Event // 关闭事件
-	group      sync.WaitGroup
+	wg         sync.WaitGroup
 	exit       chan struct{}
 	addPeer    chan string // 添加节点
 	delPeer    chan string
 }
 
 // NewTCPConn 创建一个TCP连接
-func NewTCPConn(id, self string) *TCPConn {
+func NewConn(id, self string) *TCPConn {
 	var t TCPConn
 	laddr, err := net.ResolveTCPAddr("tcp4", self)
 	if err != nil {
@@ -68,13 +68,14 @@ func (t *TCPConn) loopAccept() {
 		if err != nil {
 			continue
 		}
-		//t.group.Add(1)
+		t.wg.Add(1)
 		go t.procConnect(conn)
 	}
 }
 
 // 处理链接和接收数据
 func (t *TCPConn) procConnect(c *net.TCPConn) {
+	defer t.wg.Done()
 	// 握手确认
 	id, err := t.ackHandshake(c)
 	if err != nil {
@@ -149,6 +150,7 @@ func (t *TCPConn) connectPeers(addr string) (*connection, error) {
 	}
 
 	c := t.addConnPool(id, conn, writableConn)
+	t.wg.Add(1)
 	go c.loop()
 	return c, nil
 }
@@ -200,7 +202,7 @@ func (t *TCPConn) encHandshake(c *net.TCPConn) (string, error) {
 
 // 连接处理
 func (t *TCPConn) loopDail() {
-	timer := time.NewTimer(30 * time.Second)
+	timer := time.NewTicker(30 * time.Second)
 	defer timer.Stop()
 	flashConnpool := func() {
 		// TODO 连接清理
@@ -226,7 +228,6 @@ FinLoop:
 			}
 		case <-timer.C:
 			flashConnpool()
-			timer.Reset(30 * time.Second)
 		}
 	}
 }
@@ -294,7 +295,7 @@ func (t *TCPConn) Close() {
 	// 先断开连接池
 	// 再断开主链接
 	t.exit <- struct{}{}
-	t.group.Wait()
+	t.wg.Wait()
 }
 
 type peerInfo struct {

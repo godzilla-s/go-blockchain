@@ -7,6 +7,5 @@ type Config struct {
 
 func LoadConfig() *Config {
 	var cfg Config
-
 	return &cfg
 }
