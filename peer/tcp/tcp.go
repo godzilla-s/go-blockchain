@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"errors"
+	"fmt"
 	"go-blockchain/event"
 	"log"
 	"net"
@@ -45,6 +46,7 @@ func NewConn(id, self string) *TCPConn {
 		return nil
 	}
 
+	fmt.Println("addr:", laddr.String())
 	t.self = laddr
 	t.exit = make(chan struct{})
 	t.ID = id
@@ -62,7 +64,7 @@ func (t *TCPConn) loopAccept() {
 	if err != nil {
 		panic(err)
 	}
-	log.Println("listen up .....", t.ID)
+	log.Println("listen up .....", t.ID, lsn.Addr())
 	for {
 		conn, err := lsn.AcceptTCP()
 		if err != nil {

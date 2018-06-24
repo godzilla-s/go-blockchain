@@ -15,6 +15,7 @@ const PerfixInput = "> "
 type Console struct {
 	prompter *liner.State
 	prompt   string // 输出前缀
+	read     chan string
 	exit     chan struct{}
 }
 
@@ -24,6 +25,7 @@ func New() *Console {
 	c.prompter = liner.NewLiner()
 	c.prompt = PerfixInput
 	c.exit = make(chan struct{})
+	c.read = make(chan string)
 	c.init()
 	return c
 }
@@ -59,12 +61,22 @@ func (c *Console) Start() {
 		case s := <-strCh:
 			if s == "exit" {
 				fmt.Println("exit...")
+				c.exit <- struct{}{}
 				return
 			}
 			if len(s) == 0 {
 				break
 			}
-			fmt.Println("read:", s)
+			//fmt.Println("read:", s)
+			c.read <- s
 		}
 	}
+}
+
+func (c *Console) Read() <-chan string {
+	return c.read
+}
+
+func (c *Console) Exit() <-chan struct{} {
+	return c.exit
 }

@@ -18,6 +18,9 @@ type netWorking interface {
 
 // NewPeer
 func NewPeer(id, addr string) *Peer {
+	if id == "" || addr == "" {
+		panic("empty id or address")
+	}
 	conn := tcp.NewConn(id, addr)
 	p := new(Peer)
 	p.net = conn
