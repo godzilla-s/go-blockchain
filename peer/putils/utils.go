@@ -12,7 +12,7 @@ func GetLocalIP() net.IP {
 		panic(err)
 	}
 	for _, addr := range addrs {
-		if ip, ok := addr.(*net.IPNet); ok {
+		if ip, ok := addr.(*net.IPNet); ok && !ip.IP.IsLoopback() {
 			if ip.IP.To4() != nil {
 				return ip.IP
 			}

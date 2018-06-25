@@ -2,7 +2,6 @@
 package console
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -42,35 +41,43 @@ func (c *Console) Start() {
 		for {
 			line, err := c.prompter.Prompt(<-strCh)
 			if err != nil {
-				fmt.Println("err", err)
+				if err == liner.ErrPromptAborted {
+					strCh <- ""
+					continue
+				}
+				close(strCh)
 				return
 			}
 			strCh <- line
 		}
 	}()
 
-	abort := make(chan os.Signal, 1)
-	signal.Notify(abort, syscall.SIGINT, syscall.SIGTERM) // 捕捉终止信号
-
 	// 处理命令行得到的数据
-	for {
-		strCh <- c.prompt
-		select {
-		case <-abort:
-			return
-		case s := <-strCh:
-			if s == "exit" {
-				fmt.Println("exit...")
-				c.exit <- struct{}{}
+	go func() {
+		abort := make(chan os.Signal, 1)
+		signal.Notify(abort, syscall.SIGINT, syscall.SIGTERM) // 捕捉终止信号
+		for {
+			strCh <- c.prompt
+			select {
+			case <-abort:
 				return
+			case s, ok := <-strCh:
+				if !ok {
+					return
+				}
+				if isExit(s) {
+					//fmt.Println("exit...")
+					c.exit <- struct{}{}
+					return
+				}
+				if !validInput(s) {
+					break
+				}
+				//fmt.Println("s:", s)
+				c.read <- s
 			}
-			if len(s) == 0 {
-				break
-			}
-			//fmt.Println("read:", s)
-			c.read <- s
 		}
-	}
+	}()
 }
 
 func (c *Console) Read() <-chan string {
@@ -79,4 +86,12 @@ func (c *Console) Read() <-chan string {
 
 func (c *Console) Exit() <-chan struct{} {
 	return c.exit
+}
+
+func isExit(s string) bool {
+	return s == "exit" || s == "Exit" || s == "EXIT"
+}
+
+func validInput(s string) bool {
+	return len(s) > 0
 }

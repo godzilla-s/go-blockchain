@@ -8,13 +8,19 @@ import (
 const (
 	PackHandshake    = iota + 1 // 握手
 	PackAckHandshake            // 握手确认
-	PackHeartbeat               // 心跳包
+	PackPing                    // ping
+	PackPong                    // pong
+	PackBlock                   // 区块数据
 )
 
 type Message struct {
 	MsgType byte
 	ID      string
 	Data    []byte
+}
+
+func NewMessage() *Message {
+	return nil
 }
 
 func (m *Message) Encode() []byte {

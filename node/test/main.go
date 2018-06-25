@@ -1,13 +1,27 @@
 package main
 
-import "go-blockchain/node"
+import (
+	"flag"
+	"fmt"
+	"go-blockchain/node"
+	"go-blockchain/peer/putils"
+)
+
+var port int
 
 func main() {
+	flag.IntVar(&port, "p", 0, "listen port")
+	flag.Parse()
+
+	if port == 0 {
+		panic("invalid port")
+	}
+	localAddr := putils.GetLocalIP().String()
 	cfg := node.Config{
-		Key:  "ace241235af867a876a87c9e0d149",
-		Addr: "192.168.1.100:8002",
+		Key:  putils.Rand().Hex(),
+		Addr: fmt.Sprintf("%s:%d", localAddr, port),
 	}
 	node := node.NewNode(&cfg)
 	node.Start()
-	node.Stop()
+	//node.Wait()
 }

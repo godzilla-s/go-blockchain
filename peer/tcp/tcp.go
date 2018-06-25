@@ -280,10 +280,10 @@ func (t *TCPConn) DelPeer(id string) {
 }
 
 // GetPeersInfo 获取节点信息
-func (t *TCPConn) GetPeers() []peerInfo {
-	var peers []peerInfo
+func (t *TCPConn) GetPeers() []PeerInfo {
+	var peers []PeerInfo
 	for _, conn := range t.connpool {
-		var p peerInfo
+		var p PeerInfo
 		p.ID = conn.id
 		p.LocalAddr = conn.rconn.LocalAddr().String()
 		p.RemoteAddr = conn.rconn.RemoteAddr().String()
@@ -300,7 +300,7 @@ func (t *TCPConn) Close() {
 	t.wg.Wait()
 }
 
-type peerInfo struct {
+type PeerInfo struct {
 	ID         string `json:"id"`
 	LocalAddr  string `json:"localAddr"`
 	RemoteAddr string `json:"remoteAddr"`

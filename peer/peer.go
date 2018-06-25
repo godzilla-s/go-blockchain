@@ -1,6 +1,10 @@
 package peer
 
-import "go-blockchain/peer/tcp"
+import (
+	"fmt"
+	"go-blockchain/peer/tcp"
+	"time"
+)
 
 // https://github.com/y13i/j2y 转化
 
@@ -34,10 +38,27 @@ func (p *Peer) Send(msg tcp.Message) {
 
 // Add 添加节点
 func (p *Peer) Add(addr string) {
+	fmt.Println(addr)
 	p.net.AddPeer(addr)
 }
 
 // Close 关闭节点
 func (p *Peer) Close() {
 	p.net.Close()
+}
+
+func (p *Peer) GetPeers() {
+}
+
+// ping 心跳包
+func (p *Peer) ping() {
+	ping := time.NewTicker(5 * time.Second)
+	defer ping.Stop()
+	for {
+		select {
+		case <-ping.C:
+			msg := tcp.Message{MsgType: tcp.PackPing}
+			p.Send(msg)
+		}
+	}
 }

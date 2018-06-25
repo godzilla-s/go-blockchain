@@ -19,6 +19,7 @@ var (
 func main() {
 	c := console.New()
 	c.Start()
+	<-c.Exit()
 }
 
 func Liner() {
