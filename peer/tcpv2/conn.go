@@ -2,7 +2,7 @@ package tcpv2
 
 import (
 	"fmt"
-	"io"
+	"go-blockchain/event"
 	"net"
 	"time"
 )
@@ -11,75 +11,43 @@ const (
 	handshakeRespTime = 5 * time.Second
 )
 
-type message struct {
-}
-
 type conn struct {
-	id      string
-	fd      *net.TCPConn
-	readCh  chan message
-	writeCh chan message
-	closed  chan struct{}
+	id         string
+	fd         *net.TCPConn
+	readCh     chan message // 读取消息
+	writeCh    chan message // 写入消息
+	closing    chan struct{}
+	writeSub   event.Subcription
+	lastactive int64 // 最后活跃时间
 }
 
-func newConn(fd *net.TCPConn) *conn {
-	c := new(conn)
-	c.fd = fd
-	c.readCh = make(chan message)
-	c.writeCh = make(chan message)
-	c.closed = make(chan struct{})
-
-	return c
-}
-
-func (c *conn) readLoop() {
-	buf := make([]byte, 1028)
-	for {
-		_, err := c.fd.Read(buf)
-		if err != nil && err != io.EOF {
-			continue
-		}
-		if err == io.EOF {
-			c.closed <- struct{}{}
-			return
-		}
-		// handle buf
-	}
-}
-
-func (c *conn) loop() {
-	go c.readLoop()
-	for {
-		select {
-		case <-c.closed:
-			//
-		case <-c.readCh:
-			//
-		case <-c.writeCh:
-		}
-	}
-}
-
-// 握手协议
-func encHandshake(c *conn) {
-	c.fd.Write([]byte(""))
-	c.fd.SetReadDeadline(time.Now().Add(handshakeRespTime))
-	buf := make([]byte, 512)
-	c.fd.Read(buf)
-}
-
-// 确认握手
-func ackHandshake(c *conn) error {
-	buf := make([]byte, 512)
-	c.fd.SetReadDeadline(time.Now().Add(handshakeRespTime))
-	n, err := c.fd.Read(buf)
+func (c *conn) writeMsg(msg message) {
+	data, err := msg.msgEncode()
 	if err != nil {
-		return err
+		fmt.Println(err)
+		return
 	}
+	fmt.Println("write:", data, "id", c.id)
+	_, err = c.fd.Write(data)
+	fmt.Println("write err:", err)
+}
 
-	// TODO 数据确认
-	fmt.Println(buf[:n])
-	c.fd.Write([]byte(""))
+func (c *conn) readMsg() (msg message, err error) {
+	buf := make([]byte, 1028)
+	n := 0
+	n, err = c.fd.Read(buf)
+	if err != nil {
+		fmt.Println("read err:", err)
+		return
+	}
+	fmt.Println("read:", buf[:n])
+	err = msg.msgDecode(buf[:n])
+	return
+}
 
-	return nil
+func (c *conn) close() {
+	c.writeSub.Unsubcribe()
+	close(c.readCh)
+	close(c.writeCh)
+	c.fd.Close()
 }
