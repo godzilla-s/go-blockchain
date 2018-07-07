@@ -49,18 +49,7 @@ func (t *TCPConn) loopAccept() {
 }
 
 func (t *TCPConn) handleConn(fd *net.TCPConn) {
-	defer func() {
-		fd.Close()
-		t.wg.Done()
-	}()
-	conn := newConn(fd)
-	err := ackHandshake(conn)
-	if err != nil {
-		return
-	}
 
-	t.wg.Add(1)
-	go conn.loop()
 }
 
 func (t *TCPConn) Dial(addr string) {
