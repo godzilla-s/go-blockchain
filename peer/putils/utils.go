@@ -1,6 +1,7 @@
 package putils
 
 import (
+	"io"
 	"net"
 	"strings"
 )
@@ -21,7 +22,20 @@ func GetLocalIP() net.IP {
 	return nil
 }
 
+func ParseTCPAddr(addr string) *net.TCPAddr {
+	laddr, err := net.ResolveTCPAddr("tcp4", addr)
+	if err != nil {
+		panic(err)
+	}
+
+	return laddr
+}
+
 // ErrContain 错误包含字符
 func ErrContain(err error, s string) bool {
 	return strings.Contains(err.Error(), s)
+}
+
+func IsErrClosed(err error) bool {
+	return err == io.EOF
 }

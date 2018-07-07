@@ -9,8 +9,9 @@ import (
 // https://github.com/y13i/j2y 转化
 
 type Peer struct {
-	ID  string
-	net netWorking
+	ID   string
+	net  netWorking
+	exit chan struct{}
 }
 
 type netWorking interface {
@@ -28,6 +29,7 @@ func NewPeer(id, addr string) *Peer {
 	conn := tcp.NewConn(id, addr)
 	p := new(Peer)
 	p.net = conn
+	p.exit = make(chan struct{})
 	return p
 }
 
@@ -56,6 +58,8 @@ func (p *Peer) ping() {
 	defer ping.Stop()
 	for {
 		select {
+		case <-p.exit:
+			return
 		case <-ping.C:
 			msg := tcp.Message{MsgType: tcp.PackPing}
 			p.Send(msg)
